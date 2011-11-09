@@ -1,0 +1,8 @@
+%%-*- mode: erlang -*-
+{application, rebar_qc,
+ [
+  {description, "A temporary home for rebar_qc (as a plugin) until it gets merged"},
+  {vsn, "0.0.1"},
+  {applications, [kernel,stdlib]}
+ ]}.
+%% vim: set filetype=erlang tabstop=2
