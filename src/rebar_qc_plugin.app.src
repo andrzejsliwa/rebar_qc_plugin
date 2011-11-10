@@ -1,5 +1,5 @@
 %%-*- mode: erlang -*-
-{application, rebar_qc,
+{application, rebar_qc_plugin,
  [
   {description, "A temporary home for rebar_qc (as a plugin) until it gets merged"},
   {vsn, "0.0.1"},
