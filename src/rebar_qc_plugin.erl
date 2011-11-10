@@ -24,9 +24,9 @@
 %% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %% THE SOFTWARE.
 %% -------------------------------------------------------------------
--module(rebar_qc).
+-module(rebar_quickcheck).
 
--export([qc/2]).
+-export([quickcheck/2]).
 
 -include("rebar.hrl").
 
@@ -35,7 +35,7 @@
 %% ===================================================================
 
 
-qc(Config, _AppFile) ->
+quickcheck(Config, _AppFile) ->
     QCOpts = rebar_config:get(Config, qc_opts, []),
     QC = select_qc_lib(QCOpts),
     ?DEBUG("Selected QC library: ~p~n", [QC]),
@@ -100,8 +100,8 @@ run(Config, QC, QCOpts) ->
                    [Errors])
     end.
 
-qc_module(QC=proper, QCOpts, M) -> QC:module(M, QCOpts);
-qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M).
+qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M);
+qc_module(QC=_, QCOpts, M) -> QC:module(M, QCOpts).
 
 find_prop_mods() ->
     Beams = rebar_utils:find_files(?TEST_DIR, ".*\\.beam\$"),
