@@ -24,21 +24,18 @@
 %% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %% THE SOFTWARE.
 %% -------------------------------------------------------------------
--module(rebar_quickcheck).
+-module(rebar_qc_plugin).
 
 -export([quickcheck/2]).
-
--include("rebar.hrl").
 
 %% ===================================================================
 %% Public API
 %% ===================================================================
 
-
 quickcheck(Config, _AppFile) ->
     QCOpts = rebar_config:get(Config, qc_opts, []),
     QC = select_qc_lib(QCOpts),
-    ?DEBUG("Selected QC library: ~p~n", [QC]),
+    rebar_log:log(debug, "Selected QC library: ~p~n", [QC]),
     run(Config, QC, QCOpts -- [{qc_lib, QC}]).
 
 %% ===================================================================
@@ -47,6 +44,7 @@ quickcheck(Config, _AppFile) ->
 
 -define(PROPER_MOD, proper).
 -define(EQC_MOD, eqc).
+-define(TEST_DIR, ".test").
 
 select_qc_lib(QCOpts) ->
     case proplists:get_value(qc_lib, QCOpts) of
@@ -57,7 +55,7 @@ select_qc_lib(QCOpts) ->
                 {module, QC} ->
                     QC;
                 {error, nofile} ->
-                    ?ABORT("Configured QC library '~p' not available~n", [QC])
+                    rebar_utils:abort("Configured QC library '~p' not available~n", [QC])
             end
     end.
 
@@ -70,7 +68,7 @@ detect_qc_lib() ->
                 {module, ?EQC_MOD} ->
                     ?EQC_MOD;
                 {error, nofile} ->
-                    ?ABORT("No QC library available~n", [])
+                    rebar_utils:abort("No QC library available~n", [])
             end
     end.
 
@@ -81,7 +79,7 @@ setup_codepath() ->
     CodePath.
 
 run(Config, QC, QCOpts) ->
-    ?DEBUG("QC Options: ~p~n", [QCOpts]),
+    rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
 
     ok = filelib:ensure_dir(?TEST_DIR ++ "/foo"),
     CodePath = setup_codepath(),
@@ -96,8 +94,8 @@ run(Config, QC, QCOpts) ->
             true = code:set_path(CodePath),
             ok;
         Errors ->
-            ?ABORT("One or more QC properties didn't hold true:~n~p~n",
-                   [Errors])
+            rebar_utils:abort("One or more QC properties "
+                              "didn't hold true:~n~p~n", [Errors])
     end.
 
 qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M);
