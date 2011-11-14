@@ -33,7 +33,7 @@
 %% ===================================================================
 
 quickcheck(Config, _AppFile) ->
-    QCOpts = rebar_config:get(Config, qc_opts, []),
+    QCOpts = process_config(Config),
     QC = select_qc_lib(QCOpts),
     rebar_log:log(debug, "Selected QC library: ~p~n", [QC]),
     run(Config, QC, QCOpts -- [{qc_lib, QC}]).
@@ -45,6 +45,16 @@ quickcheck(Config, _AppFile) ->
 -define(PROPER_MOD, proper).
 -define(EQC_MOD, eqc).
 -define(TEST_DIR, ".test").
+
+process_config(Config) ->
+    QCOpts = rebar_config:get(Config, qc_opts, []),
+    case lists:keyfind(on_output, 1, Config) of
+        {_, {M, F}} ->
+            lists:keyreplace(on_output, 1, QCOpts0, 
+                            {on_output, fun(Fmt, Args) -> M:F(Fmt, Args) end});
+        false ->
+            QCOpts
+    end.
 
 select_qc_lib(QCOpts) ->
     case proplists:get_value(qc_lib, QCOpts) of
