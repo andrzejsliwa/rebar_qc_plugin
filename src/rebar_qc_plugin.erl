@@ -31,7 +31,7 @@
 %% ===================================================================
 %% Public API
 %% ===================================================================
-
+-spec quickcheck(list(term()), term()) -> 'ok' | no_return().
 quickcheck(Config, _AppFile) ->
     QCOpts = process_config(Config),
     QC = select_qc_lib(QCOpts),
@@ -50,7 +50,7 @@ process_config(Config) ->
     QCOpts = rebar_config:get(Config, qc_opts, []),
     case lists:keyfind(on_output, 1, Config) of
         {_, {M, F}} ->
-            lists:keyreplace(on_output, 1, QCOpts0, 
+            lists:keyreplace(on_output, 1, QCOpts,
                             {on_output, fun(Fmt, Args) -> M:F(Fmt, Args) end});
         false ->
             QCOpts
@@ -99,7 +99,13 @@ run(Config, QC, QCOpts) ->
     %% as well.
     ok = rebar_erlc_compiler:test_compile(Config),
 
-    case lists:flatten([qc_module(QC, QCOpts, M) || M <- find_prop_mods()]) of
+    {PropMods, OtherMods} = find_prop_mods(),
+    test_server_ctrl:start(),
+    test_server:cover_compile({none, [], OtherMods, [PropMods]}),
+    Results = lists:flatten([qc_module(QC, QCOpts, M) || M <- PropMods]),
+    test_server:cover_analyse({details, ?TEST_DIR}, OtherMods),
+    test_server_ctrl:stop(),
+    case Results of
         [] ->
             true = code:set_path(CodePath),
             ok;
@@ -113,7 +119,9 @@ qc_module(QC=_, QCOpts, M) -> QC:module(M, QCOpts).
 
 find_prop_mods() ->
     Beams = rebar_utils:find_files(?TEST_DIR, ".*\\.beam\$"),
-    [M || M <- [rebar_utils:erl_to_mod(Beam) || Beam <- Beams], has_prop(M)].
+    PropMods = [M || M <- [rebar_utils:erl_to_mod(Beam) || Beam <- Beams], 
+                     has_prop(M)],
+    {PropMods, Beams -- PropMods}.
 
 has_prop(Mod) ->
     lists:any(fun({F,_A}) -> lists:prefix("prop_", atom_to_list(F)) end,
