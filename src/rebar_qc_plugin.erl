@@ -26,12 +26,18 @@
 %% -------------------------------------------------------------------
 -module(rebar_qc_plugin).
 
+-export(['check-all'/2]).
 -export([quickcheck/2]).
 -export(['check-specs'/2]).
 
 %% ===================================================================
 %% Public API
 %% ===================================================================
+-spec 'check-all'(list(term()), term()) -> 'ok' | no_return().
+'check-all'(Config, AppFile) ->
+    ok = quickcheck(Config, AppFile),
+    ok = 'check-specs'(Config, AppFile).
+
 -spec quickcheck(list(term()), term()) -> 'ok' | no_return().
 quickcheck(Config, _AppFile) ->
     check(prop, Config).
