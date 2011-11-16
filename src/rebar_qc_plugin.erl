@@ -132,8 +132,11 @@ run_qc_mods(QC, QCOpts, PropMods) ->
 
 run_qc_specs(QC, Mods, QCOpts, Config) ->
     ToCheck = rebar_config:get_local(Config, qc_check_specs, []),
-    [ qc_check_specs(QC, QCOpts, Mod) || Mod <- Mods, Rule <- ToCheck,
-                                         match(Mod, Rule) ].
+    Results = [ qc_check_specs(QC, QCOpts, Mod) || 
+                                Mod <- Mods, 
+                                Rule <- ToCheck,
+                                match(Mod, Rule) ],
+    lists:flatten(Results).
 
 qc_check_specs(eqc, _, _) -> 
    rebar_utils:abort("Cannot check exported function "
