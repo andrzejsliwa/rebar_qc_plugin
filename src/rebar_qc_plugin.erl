@@ -48,7 +48,7 @@ quickcheck(Config, _AppFile) ->
 
 process_config(Config) ->
     QCOpts = rebar_config:get(Config, qc_opts, []),
-    case lists:keyfind(on_output, 1, Config) of
+    case lists:keyfind(on_output, 1, QCOpts) of
         {_, {M, F}} ->
             lists:keyreplace(on_output, 1, QCOpts,
                             {on_output, fun(Fmt, Args) -> M:F(Fmt, Args) end});
@@ -91,7 +91,7 @@ setup_codepath() ->
 run(Config, QC, QCOpts) ->
     rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
 
-    ok = filelib:ensure_dir(?TEST_DIR ++ "/foo"),
+    ok = filelib:ensure_dir(filename:join(?TEST_DIR, "foo")),
     CodePath = setup_codepath(),
 
     %% Compile erlang code to ?TEST_DIR, using a tweaked config
@@ -100,11 +100,10 @@ run(Config, QC, QCOpts) ->
     ok = rebar_erlc_compiler:test_compile(Config),
 
     {PropMods, OtherMods} = find_prop_mods(),
-    test_server_ctrl:start(),
-    test_server:cover_compile({none, [], OtherMods, [PropMods]}),
+
+    maybe_init_cover(PropMods, OtherMods, Config),
     Results = lists:flatten([qc_module(QC, QCOpts, M) || M <- PropMods]),
-    test_server:cover_analyse({details, ?TEST_DIR}, OtherMods),
-    test_server_ctrl:stop(),
+    maybe_analyse_and_log(OtherMods, Config),
     case Results of
         [] ->
             true = code:set_path(CodePath),
@@ -114,14 +113,63 @@ run(Config, QC, QCOpts) ->
                               "didn't hold true:~n~p~n", [Errors])
     end.
 
+maybe_init_cover(PropMods, OtherMods, Config) ->
+    case rebar_config:get_local(Config, cover_enabled, false) of
+        true ->
+            test_server_ctrl:start(),
+            test_server:cover_compile({none, [], OtherMods, PropMods});
+        false ->
+            ok
+    end.
+
+maybe_analyse_and_log(Mods, Config) ->
+    case rebar_config:get_local(Config, cover_enabled, false) of
+        true ->
+            CovDir = rebar_config:get_local(Config, cover_dir, ".cover"),
+            Dir = filename:join(?TEST_DIR, CovDir),
+            rebar_utils:ensure_dir(filename:join(Dir, "foobar")),
+            Analysis = test_server:cover_analyse({details, Dir}, Mods),
+            maybe_print_cover(Analysis, Config),
+            test_server_ctrl:stop();
+        false ->
+            ok
+    end.
+
+maybe_print_cover(Analysis, Config) ->
+    case rebar_config:get(Config, cover_print_enabled, false) of
+        true ->
+            {Mods, {Covered, NotCovered, MaxLen}} =
+                lists:mapfoldl(fun collect_cover_data/2, {0, 0, 0}, Analysis),
+            TotalCoverage = percentage(Covered, NotCovered),
+            Width = MaxLen * -1,
+            io:format("~nCode Coverage:~n", []),
+            lists:foreach(fun({Mod, Pcnt}) ->
+                              io:format("~*s: ~4s~n", [Width, Mod, Pcnt])
+                          end, Mods),
+            io:format("~n~*s : ~s~n", [Width, "Total", TotalCoverage]);
+        false ->
+            ok
+    end.
+
+collect_cover_data({Mod, {Cov, NotCov, _}},
+                   {TotalCovered, TotalNotCovered, MaxLen}) ->
+    {{Mod, percentage(Cov, NotCov)},
+        {TotalCovered + Cov, TotalNotCovered + NotCov,
+            erlang:max(length(atom_to_list(Mod)), MaxLen)}}.
+
+percentage(0, 0) ->
+    "not executed";
+percentage(Cov, NotCov) ->
+    integer_to_list(trunc((Cov / (Cov + NotCov)) * 100)) ++ "%".
+
 qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M);
 qc_module(QC=_, QCOpts, M) -> QC:module(M, QCOpts).
 
 find_prop_mods() ->
     Beams = rebar_utils:find_files(?TEST_DIR, ".*\\.beam\$"),
-    PropMods = [M || M <- [rebar_utils:erl_to_mod(Beam) || Beam <- Beams], 
-                     has_prop(M)],
-    {PropMods, Beams -- PropMods}.
+    AllMods = [rebar_utils:erl_to_mod(Beam) || Beam <- Beams],
+    PropMods = [M || M <- AllMods, has_prop(M)],
+    {PropMods, AllMods -- PropMods}.
 
 has_prop(Mod) ->
     lists:any(fun({F,_A}) -> lists:prefix("prop_", atom_to_list(F)) end,
