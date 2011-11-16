@@ -27,16 +27,18 @@
 -module(rebar_qc_plugin).
 
 -export([quickcheck/2]).
+-export(['check-specs'/2]).
 
 %% ===================================================================
 %% Public API
 %% ===================================================================
 -spec quickcheck(list(term()), term()) -> 'ok' | no_return().
 quickcheck(Config, _AppFile) ->
-    QCOpts = process_config(Config),
-    QC = select_qc_lib(QCOpts),
-    rebar_log:log(debug, "Selected QC library: ~p~n", [QC]),
-    run(Config, QC, QCOpts -- [{qc_lib, QC}]).
+    check(prop, Config).
+
+-spec 'check-specs'(list(term()), term()) -> 'ok' | no_return().
+'check-specs'(Config, _AppFile) ->
+    check(spec, Config).
 
 %% ===================================================================
 %% Internal functions
@@ -46,8 +48,14 @@ quickcheck(Config, _AppFile) ->
 -define(EQC_MOD, eqc).
 -define(TEST_DIR, ".test").
 
-process_config(Config) ->
-    QCOpts = rebar_config:get(Config, qc_opts, []),
+check(Mode, Config) ->
+    QCOpts = process_config(Config, qc_opts),
+    QC = select_qc_lib(QCOpts),
+    rebar_log:log(debug, "Selected QC library: ~p~n", [QC]),
+    run(Mode, Config, QC, QCOpts -- [{qc_lib, QC}]).
+
+process_config(Config, Key) ->
+    QCOpts = rebar_config:get(Config, Key, []),
     case lists:keyfind(on_output, 1, QCOpts) of
         {_, {M, F}} ->
             lists:keyreplace(on_output, 1, QCOpts,
@@ -88,7 +96,7 @@ setup_codepath() ->
     true = code:add_patha(rebar_utils:ebin_dir()),
     CodePath.
 
-run(Config, QC, QCOpts) ->
+run(Mode, Config, QC, QCOpts) ->
     rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
 
     ok = filelib:ensure_dir(filename:join(?TEST_DIR, "foo")),
@@ -100,10 +108,16 @@ run(Config, QC, QCOpts) ->
     ok = rebar_erlc_compiler:test_compile(Config),
 
     {PropMods, OtherMods} = find_prop_mods(),
-
-    maybe_init_cover(PropMods, OtherMods, Config),
-    Results = lists:flatten([qc_module(QC, QCOpts, M) || M <- PropMods]),
-    maybe_analyse_and_log(OtherMods, Config),
+    Results = case Mode of
+        spec ->
+            SpecOpts = rebar_config:get_local(Config, qc_spec_opts, QCOpts),
+            run_qc_specs(QC, OtherMods, SpecOpts, Config);
+        prop ->
+            maybe_init_cover(PropMods, OtherMods, Config),
+            PropResults = run_qc_mods(QC, QCOpts, PropMods),
+            maybe_analyse_and_log(OtherMods, Config),
+            PropResults
+    end,
     case Results of
         [] ->
             true = code:set_path(CodePath),
@@ -112,6 +126,39 @@ run(Config, QC, QCOpts) ->
             rebar_utils:abort("One or more QC properties "
                               "didn't hold true:~n~p~n", [Errors])
     end.
+
+run_qc_mods(QC, QCOpts, PropMods) ->
+    lists:flatten([ qc_module(QC, QCOpts, M) || M <- PropMods ]).
+
+run_qc_specs(QC, Mods, QCOpts, Config) ->
+    ToCheck = rebar_config:get_local(Config, qc_check_specs, []),
+    [ qc_check_specs(QC, QCOpts, Mod) || Mod <- Mods, Rule <- ToCheck,
+                                         match(Mod, Rule) ].
+
+qc_check_specs(eqc, _, _) -> 
+   rebar_utils:abort("Cannot check exported function "
+                     "specs using QuickCheck~n", []);
+qc_check_specs(QC, QCOpts, Mod) ->
+    rebar_log:log(debug, "Checking Specs in ~p~n", [code:ensure_loaded(Mod)]),
+    QC:check_specs(Mod, QCOpts).
+
+qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M);
+qc_module(QC=_, QCOpts, M) -> QC:module(M, QCOpts).
+
+find_prop_mods() ->
+   Beams = rebar_utils:find_files(?TEST_DIR, ".*\\.beam\$"),
+   AllMods = [rebar_utils:erl_to_mod(Beam) || Beam <- Beams],
+   PropMods = [M || M <- AllMods, has_prop(M)],
+   {PropMods, AllMods -- PropMods}.
+
+has_prop(Mod) ->
+   lists:any(fun({F,_A}) -> lists:prefix("prop_", atom_to_list(F)) end,
+             Mod:module_info(exports)).
+
+match(Mod, Mod) -> true;
+match(Mod, Rule) when is_atom(Mod) andalso is_list(Rule) ->
+    re:run(atom_to_list(Mod), Rule, [{capture, none}]) == match;
+match(_, _) -> false.
 
 maybe_init_cover(PropMods, OtherMods, Config) ->
     case rebar_config:get_local(Config, cover_enabled, false) of
@@ -161,16 +208,3 @@ percentage(0, 0) ->
     "not executed";
 percentage(Cov, NotCov) ->
     integer_to_list(trunc((Cov / (Cov + NotCov)) * 100)) ++ "%".
-
-qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M);
-qc_module(QC=_, QCOpts, M) -> QC:module(M, QCOpts).
-
-find_prop_mods() ->
-    Beams = rebar_utils:find_files(?TEST_DIR, ".*\\.beam\$"),
-    AllMods = [rebar_utils:erl_to_mod(Beam) || Beam <- Beams],
-    PropMods = [M || M <- AllMods, has_prop(M)],
-    {PropMods, AllMods -- PropMods}.
-
-has_prop(Mod) ->
-    lists:any(fun({F,_A}) -> lists:prefix("prop_", atom_to_list(F)) end,
-              Mod:module_info(exports)).
