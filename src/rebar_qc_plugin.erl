@@ -34,17 +34,19 @@
 %% Public API
 %% ===================================================================
 -spec 'check-all'(list(term()), term()) -> 'ok' | no_return().
-'check-all'(Config, AppFile) ->
-    ok = quickcheck(Config, AppFile),
-    ok = 'check-specs'(Config, AppFile).
+'check-all'(Config, _AppFile) ->
+    OldCodePath = setup(Config),
+    {QC, QCOpts, _} = check(prop, Config, OldCodePath),
+    run(spec, Config, QC, QCOpts, OldCodePath),
+    ok.
 
 -spec quickcheck(list(term()), term()) -> 'ok' | no_return().
 quickcheck(Config, _AppFile) ->
-    check(prop, Config).
+    check(prop, Config, setup(Config)).
 
 -spec 'check-specs'(list(term()), term()) -> 'ok' | no_return().
 'check-specs'(Config, _AppFile) ->
-    check(spec, Config).
+    check(spec, Config, setup(Config)).
 
 %% ===================================================================
 %% Internal functions
@@ -54,11 +56,11 @@ quickcheck(Config, _AppFile) ->
 -define(EQC_MOD, eqc).
 -define(TEST_DIR, ".test").
 
-check(Mode, Config) ->
+check(Mode, Config, OldCodePath) ->
     QCOpts = process_config(Config, qc_opts),
     QC = select_qc_lib(QCOpts),
     rebar_log:log(debug, "Selected QC library: ~p~n", [QC]),
-    run(Mode, Config, QC, QCOpts -- [{qc_lib, QC}]).
+    run(Mode, Config, QC, QCOpts -- [{qc_lib, QC}], OldCodePath).
 
 process_config(Config, Key) ->
     QCOpts = rebar_config:get(Config, Key, []),
@@ -102,17 +104,14 @@ setup_codepath() ->
     true = code:add_patha(rebar_utils:ebin_dir()),
     CodePath.
 
-run(Mode, Config, QC, QCOpts) ->
-    rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
-
+setup(Config) ->
     ok = filelib:ensure_dir(filename:join(?TEST_DIR, "foo")),
-    CodePath = setup_codepath(),
-
-    %% Compile erlang code to ?TEST_DIR, using a tweaked config
-    %% with appropriate defines, and include all the test modules
-    %% as well.
+    OldCodePath = setup_codepath(),
     ok = rebar_erlc_compiler:test_compile(Config),
+    OldCodePath.
 
+run(Mode, Config, QC, QCOpts, OldCodePath) ->
+    rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
     {PropMods, OtherMods} = find_prop_mods(),
     Results = case Mode of
         spec ->
@@ -126,8 +125,8 @@ run(Mode, Config, QC, QCOpts) ->
     end,
     case Results of
         [] ->
-            true = code:set_path(CodePath),
-            ok;
+            true = code:set_path(OldCodePath),
+            {QC, QCOpts, OldCodePath};
         Errors ->
             rebar_utils:abort("One or more QC properties "
                               "didn't hold true:~n~p~n", [Errors])
