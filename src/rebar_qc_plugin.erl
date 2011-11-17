@@ -36,17 +36,19 @@
 -spec 'check-all'(list(term()), term()) -> 'ok' | no_return().
 'check-all'(Config, _AppFile) ->
     OldCodePath = setup(Config),
-    {QC, QCOpts, _} = check(prop, Config, OldCodePath),
-    run(spec, Config, QC, QCOpts, OldCodePath),
+    check(prop, Config, OldCodePath),
+    check(spec, Config, OldCodePath),
     ok.
 
 -spec quickcheck(list(term()), term()) -> 'ok' | no_return().
 quickcheck(Config, _AppFile) ->
-    check(prop, Config, setup(Config)).
+    check(prop, Config, setup(Config)),
+    ok.
 
 -spec 'check-specs'(list(term()), term()) -> 'ok' | no_return().
 'check-specs'(Config, _AppFile) ->
-    check(spec, Config, setup(Config)).
+    check(spec, Config, setup(Config)),
+    ok.
 
 %% ===================================================================
 %% Internal functions
