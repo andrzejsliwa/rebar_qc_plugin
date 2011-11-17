@@ -111,13 +111,14 @@ setup(Config) ->
     OldCodePath.
 
 run(Mode, Config, QC, QCOpts, OldCodePath) ->
-    rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
     {PropMods, OtherMods} = find_prop_mods(),
     Results = case Mode of
         spec ->
             SpecOpts = rebar_config:get_local(Config, qc_spec_opts, QCOpts),
+            rebar_log:log(debug, "QC Options: ~p~n", [SpecOpts]),
             run_qc_specs(QC, OtherMods, SpecOpts, Config);
         prop ->
+            rebar_log:log(debug, "QC Options: ~p~n", [QCOpts]),
             maybe_init_cover(PropMods, OtherMods, Config),
             PropResults = run_qc_mods(QC, QCOpts, PropMods),
             maybe_analyse_and_log(OtherMods, Config),
@@ -147,7 +148,6 @@ qc_check_specs(eqc, _, _) ->
    rebar_utils:abort("Cannot check exported function "
                      "specs using QuickCheck~n", []);
 qc_check_specs(QC, QCOpts, Mod) ->
-    rebar_log:log(debug, "Checking Specs in ~p~n", [code:ensure_loaded(Mod)]),
     QC:check_specs(Mod, QCOpts).
 
 qc_module(QC=eqc, QCOpts, M) -> QC:module(QCOpts, M);
