@@ -182,7 +182,7 @@ maybe_init_cover(PropMods, OtherMods, Config) ->
 maybe_analyse_and_log(Mods, Config) ->
     case rebar_config:get_local(Config, cover_enabled, false) of
         true ->
-            CovDir = rebar_config:get_local(Config, cover_dir, ".cover"),
+            CovDir = rebar_config:get_local(Config, cover_dir, ".qc.cover"),
             Dir = filename:join(?TEST_DIR, CovDir),
             rebar_utils:ensure_dir(filename:join(Dir, "foobar")),
             Analysis = test_server:cover_analyse({details, Dir}, Mods),
