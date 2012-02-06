@@ -109,7 +109,11 @@ setup_codepath() ->
 setup(Config) ->
     ok = filelib:ensure_dir(filename:join(?TEST_DIR, "foo")),
     OldCodePath = setup_codepath(),
-    ok = rebar_erlc_compiler:test_compile(Config),
+    TestSources = rebar_config:get_local(Config, qc_src_dir, "test"),
+    TestErls = rebar_utils:find_files(TestSources, ".*\\.erl\$"),
+    %% TODO: what about src_erls???
+    ok = rebar_file_utils:cp_r(TestErls, ?TEST_DIR),
+    ok = rebar_erlc_compiler:doterl_compile(Config, ?TEST_DIR, TestErls),
     OldCodePath.
 
 run(Mode, Config, QC, QCOpts, OldCodePath) ->
