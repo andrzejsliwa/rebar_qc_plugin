@@ -107,6 +107,7 @@ setup_codepath() ->
     CodePath.
 
 setup(Config) ->
+    io:format("PATH ~p~n", [test_dir]),
     ok = filelib:ensure_dir(test_dir() ++ "/foo"),
     ok = filelib:ensure_dir(ebin_dir() ++ "/foo"),
     OldCodePath = setup_codepath(),
