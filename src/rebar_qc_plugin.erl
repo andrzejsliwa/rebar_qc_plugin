@@ -225,7 +225,7 @@ percentage(Cov, NotCov) ->
 
 
 test_dir() ->
-    filename:join(rebar_utils:get_cwd(), ?TEST).
+    filename:join(rebar_utils:get_cwd(), ?TEST_DIR).
 
 ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
