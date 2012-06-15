@@ -102,7 +102,7 @@ detect_qc_lib() ->
 
 setup_codepath() ->
     CodePath = code:get_path(),
-    true = code:add_patha(eunit_dir()),
+    true = code:add_patha(test_dir()),
     true = code:add_pathz(ebin_dir()),
     CodePath.
 
@@ -224,8 +224,8 @@ percentage(Cov, NotCov) ->
     integer_to_list(trunc((Cov / (Cov + NotCov)) * 100)) ++ "%".
 
 
-eunit_dir() ->
-    filename:join(rebar_utils:get_cwd(), ".eunit").
+test_dir() ->
+    filename:join(rebar_utils:get_cwd(), ?TEST).
 
 ebin_dir() ->
     filename:join(rebar_utils:get_cwd(), "ebin").
