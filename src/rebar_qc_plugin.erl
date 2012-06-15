@@ -107,7 +107,8 @@ setup_codepath() ->
     CodePath.
 
 setup(Config) ->
-    ok = filelib:ensure_dir(filename:join(?TEST_DIR, "foo")),
+    ok = filelib:ensure_dir(test_dir() ++ "/foo"),
+    ok = filelib:ensure_dir(ebin_dir() ++ "/foo"),
     OldCodePath = setup_codepath(),
     TestSources = rebar_config:get_local(Config, qc_src_dir, "test"),
     TestErls = rebar_utils:find_files(TestSources, ".*\\.erl\$"),
