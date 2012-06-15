@@ -102,8 +102,8 @@ detect_qc_lib() ->
 
 setup_codepath() ->
     CodePath = code:get_path(),
-    true = code:add_patha(rebar_utils:test_dir()),
-    true = code:add_patha(rebar_utils:ebin_dir()),
+    true = code:add_patha(rebar_eunit:eunit_dir()),
+    true = code:add_patha(rebar_eunit:ebin_dir()),
     CodePath.
 
 setup(Config) ->
@@ -144,13 +144,13 @@ run_qc_mods(QC, QCOpts, PropMods) ->
 
 run_qc_specs(QC, Mods, QCOpts, Config) ->
     ToCheck = rebar_config:get_local(Config, qc_check_specs, []),
-    Results = [ qc_check_specs(QC, QCOpts, Mod) || 
-                                Mod <- Mods, 
+    Results = [ qc_check_specs(QC, QCOpts, Mod) ||
+                                Mod <- Mods,
                                 Rule <- ToCheck,
                                 match(Mod, Rule) ],
     lists:flatten(Results).
 
-qc_check_specs(eqc, _, _) -> 
+qc_check_specs(eqc, _, _) ->
    rebar_utils:abort("Cannot check exported function "
                      "specs using QuickCheck~n", []);
 qc_check_specs(QC, QCOpts, Mod) ->
